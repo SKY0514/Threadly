@@ -22,6 +22,7 @@ import {
   notifyPendingMessage,
   updateLastAssistantMessage,
 } from "@/actions/conversations";
+import { logWorkspaceUsage } from "@/actions/usageLog";
 import type { UIMessage } from "ai";
 import { CHAT_ROUTES, WORKSPACE_ROUTES } from "@/constants/routes";
 import { useUserStore } from "@/stores/user";
@@ -105,6 +106,20 @@ const Chat = ({ initialMessages, workspaceId, workspaceName }: Props) => {
 
     const assistantContent = getTextFromMessage(message);
 
+    // 워크스페이스 사용량 대시보드 집계용 — conversation/message와 엮지
+    // 않는 독립 로그라, 대화방을 나중에 지워도 이미 쓴 토큰 기록은
+    // 남습니다. 토큰 수를 모르면(스트리밍이 비정상 종료된 경우 등) 기록하지
+    // 않습니다.
+    const logUsageIfWorkspace = async () => {
+      if (!workspaceId) return;
+      if (message.metadata?.totalTokens === undefined) return;
+      await logWorkspaceUsage(
+        workspaceId,
+        storeModel,
+        message.metadata.totalTokens,
+      );
+    };
+
     const maybeGenerateWorkspaceTitle = async (
       finishedMessages: UIMessage[],
       assistantContent: string,
@@ -139,6 +154,7 @@ const Chat = ({ initialMessages, workspaceId, workspaceName }: Props) => {
         storeModel,
         workspaceId,
       );
+      await logUsageIfWorkspace();
       return;
     }
 
@@ -152,6 +168,7 @@ const Chat = ({ initialMessages, workspaceId, workspaceName }: Props) => {
         workspaceId,
         message.id,
       );
+      await logUsageIfWorkspace();
       await maybeGenerateWorkspaceTitle(finishedMessages, assistantContent);
       return;
     }
@@ -179,6 +196,7 @@ const Chat = ({ initialMessages, workspaceId, workspaceName }: Props) => {
       workspaceId,
       message.id,
     );
+    await logUsageIfWorkspace();
   };
 
   const { messages, sendMessage, regenerate, status, setMessages } = useChat<ChatUIMessage>({

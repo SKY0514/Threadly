@@ -1,5 +1,12 @@
 import { defineRelations } from "drizzle-orm";
-import { text, timestamp, pgTable, uuid, unique } from "drizzle-orm/pg-core";
+import {
+  text,
+  timestamp,
+  pgTable,
+  uuid,
+  unique,
+  integer,
+} from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
   id: uuid("id").defaultRandom().notNull().primaryKey(),
@@ -65,6 +72,23 @@ export const workspaceComment = pgTable("workspace_comment", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// 워크스페이스 사용량 대시보드 전용 로그 — 대화/메시지와 FK로 안 엮습니다.
+// AI 응답이 끝날 때마다 독립된 한 행으로 쌓이고(conversation_id, message_id
+// 없음), 그래서 대화방이나 메시지가 삭제돼도 이미 쓴 토큰 기록은 그대로
+// 남아요. 반대로 워크스페이스가 삭제되면 그 안의 사용량도 같이 지워지고
+// (cascade), 계정이 삭제되면 로그 자체는 남기되 작성자만 지웁니다(set null
+// → 화면에는 "탈퇴한 멤버"로 표시).
+export const workspaceUsageLog = pgTable("usage_log", {
+  id: uuid("id").defaultRandom().notNull().primaryKey(),
+  workspaceId: uuid("workspaceId")
+    .references(() => workspace.id, { onDelete: "cascade" })
+    .notNull(),
+  userId: uuid("userId").references(() => user.id, { onDelete: "set null" }),
+  model: text("model").notNull(),
+  tokens: integer("tokens").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const workspaceMember = pgTable(
   "workspace_member",
   {
@@ -96,6 +120,7 @@ const schema = {
   workspace,
   workspaceMember,
   workspaceComment,
+  workspaceUsageLog,
 };
 
 export const relations = defineRelations(schema, (r) => ({
@@ -176,6 +201,19 @@ export const relations = defineRelations(schema, (r) => ({
       from: r.workspaceComment.userId,
       to: r.user.id,
       optional: false,
+    }),
+  },
+  workspaceUsageLog: {
+    workspace: r.one.workspace({
+      from: r.workspaceUsageLog.workspaceId,
+      to: r.workspace.id,
+      optional: false,
+    }),
+    // 계정이 삭제되면 null이 될 수 있어요(onDelete: set null) — "탈퇴한
+    // 멤버"로 표시하기 위해 optional로 둡니다.
+    user: r.one.user({
+      from: r.workspaceUsageLog.userId,
+      to: r.user.id,
     }),
   },
 }));

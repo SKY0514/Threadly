@@ -20,9 +20,14 @@ export async function POST(req: Request) {
   });
 
   return result.toUIMessageStreamResponse<UIMessage<ChatMessageMetadata>>({
-    messageMetadata: () => ({
+    // "finish" 파트에만 totalUsage가 담겨있어요 — 스트리밍이 끝나야 실제로
+    // 쓰인 토큰 수를 알 수 있습니다. 워크스페이스 통계 대시보드 집계용.
+    messageMetadata: ({ part }) => ({
       model: selectedModel,
       createdAt: new Date().toISOString(),
+      ...(part.type === "finish"
+        ? { totalTokens: part.totalUsage.totalTokens }
+        : {}),
     }),
   });
 }
