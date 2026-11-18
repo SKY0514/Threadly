@@ -6,18 +6,20 @@ import MobileMenu from "./MobileMenu";
 import ModelSelect from "./ModelSelect";
 import WorkspaceConversationHeader from "./WorkspaceConversationHeader";
 import { useUserStore } from "@/stores/user";
-import { useParams } from "next/navigation";
+import { usePathname, useParams } from "next/navigation";
 import { getConversation, updateConversation } from "@/actions/conversations";
 import { getWorkspaceHeaderInfo } from "@/actions/workspaces";
 import { Pencil } from "lucide-react";
 import toast from "react-hot-toast";
 import { isEmpty } from "@/utils";
+import { WORKSPACE_ROUTES } from "@/constants/routes";
 
 const Header = ({ sidebar }: { sidebar: ReactNode }) => {
   const { id, workspaceId } = useParams<{
     id?: string;
     workspaceId?: string;
   }>();
+  const pathname = usePathname();
   const userName = useUserStore((state) => state.user.name);
   const inputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
@@ -91,6 +93,12 @@ const Header = ({ sidebar }: { sidebar: ReactNode }) => {
       inputRef.current?.focus();
     }
   }, [isEditMode]);
+
+  // 워크스페이스 통계 대시보드는 피그마 디자인에 별도 헤더가 없어요 — 그
+  // 화면 자체가 상단에 브레드크럼+기간 선택 바를 자체적으로 가지고 있어요.
+  if (workspaceId && pathname === WORKSPACE_ROUTES.STATS(workspaceId)) {
+    return null;
+  }
 
   // 워크스페이스 공유 대화 화면에서는 전용 헤더(워크스페이스 배지/멤버 아바타/
   // 모델 선택/검색)로 완전히 교체합니다. 데이터가 아직 로딩 중이면(workspaceInfo

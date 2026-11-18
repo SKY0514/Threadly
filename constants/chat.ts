@@ -21,3 +21,13 @@ export const AI_MODEL = [
     value: "gpt-4o-mini",
   },
 ] as const;
+
+// 워크스페이스 통계 대시보드의 일별 요청 추이 차트에서 모델별 막대 색.
+// 클라이언트 컴포넌트(WorkspaceStatsView.tsx)가 쓰는 값이라, DB 접근
+// 코드가 있는 data/workspaceStats.ts가 아니라 여기 둡니다 — 거기서 값을
+// import하면 그 파일의 db import까지 클라이언트 번들에 딸려 들어가요.
+export const WORKSPACE_STATS_MODEL_COLORS: Record<string, string> = {
+  [AI_MODEL[0].value]: "#6366f1",
+  [AI_MODEL[1].value]: "#38bdf8",
+  [AI_MODEL[2].value]: "#10b981",
+};

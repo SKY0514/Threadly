@@ -14,3 +14,11 @@ export const formatMessageTime = (createdAt?: string) =>
 // 둘 다 쓰는 ?from= 리다이렉트 검증 로직이라 공용으로 뺐습니다.
 export const isSafeRedirectPath = (from: unknown): from is string =>
   typeof from === "string" && from.startsWith("/") && !from.startsWith("//");
+
+// 큰 숫자를 "14.5M"/"8.9K"처럼 축약 — 워크스페이스 통계 대시보드의 토큰
+// 사용량 표시용입니다.
+export const formatCompactNumber = (value: number) =>
+  new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(value);

@@ -11,7 +11,7 @@ import { useModalStore } from "@/stores/modal";
 import ModalFooter from "../modal/ModalFooter";
 import { useEffect, useOptimistic, useTransition } from "react";
 import { deleteConversation } from "@/actions/conversations";
-import { useParams, useRouter } from "next/navigation";
+import { usePathname, useParams, useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import pusherClient from "@/lib/pusherClient";
 import { PUSHER_EVENTS, workspaceChannel } from "@/constants/pusher";
@@ -31,6 +31,8 @@ type Props = {
 const WorkspaceGroup = ({ workspace, conversations }: Props) => {
   const { id: conversationId } = useParams<{ id?: string }>();
   const router = useRouter();
+  const pathname = usePathname();
+  const isStatsActive = pathname === WORKSPACE_ROUTES.STATS(workspace.id);
   const openWorkspaceId = useWorkspaceGroupStore(
     (state) => state.openWorkspaceId,
   );
@@ -146,15 +148,19 @@ const WorkspaceGroup = ({ workspace, conversations }: Props) => {
           >
             <Plus className="size-3.5" />
           </Link>
-          {!isMember && (
-            <button
-              type="button"
-              disabled
-              title="통계 (준비 중)"
-              className="flex size-6 items-center justify-center rounded text-[#64748b] disabled:opacity-50"
+          {isOwner && (
+            <Link
+              href={WORKSPACE_ROUTES.STATS(workspace.id)}
+              title="사용량 통계"
+              className={cn(
+                "flex size-6 items-center justify-center rounded",
+                isStatsActive
+                  ? "bg-[#6366f1] text-white"
+                  : "text-[#64748b] hover:text-[#0f172a]",
+              )}
             >
               <BarChart2 className="size-3.5" />
-            </button>
+            </Link>
           )}
           {!isMember && (
             <button

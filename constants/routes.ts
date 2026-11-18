@@ -23,6 +23,7 @@ export const WORKSPACE_ROUTES = {
   NEW: (workspaceId: string) => `/w/${workspaceId}`,
   CONVERSATION: (workspaceId: string, conversationId: string) =>
     `/w/${workspaceId}/c/${conversationId}`,
+  STATS: (workspaceId: string) => `/w/${workspaceId}/stats`,
 };
 
 export const PUBLIC_ROUTES = [AUTH_ROUTES.LOGIN, AUTH_ROUTES.SIGN_UP];
