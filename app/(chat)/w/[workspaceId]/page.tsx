@@ -1,6 +1,7 @@
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import Chat from "@/components/chat/Chat";
 import { getWorkspaceMembership } from "@/data/workspace";
+import { NOT_FOUND_URL } from "@/constants/routes";
 
 const WorkspaceNewConversationPage = async ({
   params,
@@ -11,8 +12,10 @@ const WorkspaceNewConversationPage = async ({
 
   const membership = await getWorkspaceMembership(workspaceId);
 
+  // (chat) 레이아웃 안에서 notFound()를 쓰면 사이드바까지 같이 렌더돼서,
+  // 사이드바 없는 404 화면을 보여주기 위해 바깥 경로로 보냅니다.
   if (!membership) {
-    notFound();
+    redirect(NOT_FOUND_URL);
   }
 
   return (

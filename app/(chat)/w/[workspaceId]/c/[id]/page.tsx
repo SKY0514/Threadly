@@ -1,10 +1,10 @@
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { MessageSquareOff } from "lucide-react";
 import Chat from "@/components/chat/Chat";
 import { getWorkspaceConversation } from "@/data/workspace";
 import { getMessagesByConversation } from "@/data/conversation";
-import { BASE_URL } from "@/constants/routes";
+import { BASE_URL, NOT_FOUND_URL } from "@/constants/routes";
 
 const WorkspaceConversationPage = async ({
   params,
@@ -16,8 +16,10 @@ const WorkspaceConversationPage = async ({
   const result = await getWorkspaceConversation(workspaceId, id);
 
   // 멤버가 아니면 애초에 이 워크스페이스에 접근할 권한이 없는 거라 404로.
+  // (chat) 레이아웃 안에서 notFound()를 쓰면 사이드바까지 같이 렌더돼서,
+  // 사이드바 없는 404 화면을 보여주기 위해 바깥 경로로 보냅니다.
   if (result === "not-member") {
-    notFound();
+    redirect(NOT_FOUND_URL);
   }
 
   // 멤버인데 대화가 없으면 — 다른 멤버가 방금 삭제한 경우가 대부분이에요.
