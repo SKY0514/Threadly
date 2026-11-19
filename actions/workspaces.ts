@@ -12,6 +12,7 @@ import { eq, and } from "drizzle-orm";
 import pusherServer from "@/lib/pusher";
 import { PUSHER_EVENTS, workspaceChannel } from "@/constants/pusher";
 import { notifyWorkspaceUpdated } from "./conversations";
+import { canActOnRole } from "@/utils";
 
 // 초대 링크(/invite/[token])용 토큰. 링크 소지자는 누구나 합류할 수 있는
 // 구조라 추측하기 어렵도록 128비트(22자, URL-safe) 랜덤 문자열을 씁니다.
@@ -103,14 +104,18 @@ type AddMemberResult =
 // 워크스페이스 생성 모달의 "추가" 버튼에서 호출합니다. 가입된 이메일이면
 // 즉시 멤버로 등록(role: member 고정), 미가입 이메일이면 아무것도 저장하지
 // 않고 "pending"만 돌려줍니다 — 그 경우 호출부가 초대 링크를 안내합니다.
+// 오너/관리자 둘 다 멤버를 초대할 수 있습니다.
 export const addWorkspaceMemberByEmail = async (
   workspaceId: string,
   email: string,
 ): Promise<AddMemberResult> => {
   const membership = await getWorkspaceMembership(workspaceId);
 
-  if (!membership || membership.role !== "owner") {
-    throw new Error("워크스페이스 오너만 멤버를 추가할 수 있습니다.");
+  if (
+    !membership ||
+    (membership.role !== "owner" && membership.role !== "admin")
+  ) {
+    throw new Error("워크스페이스 오너/관리자만 멤버를 추가할 수 있습니다.");
   }
 
   const invitedUser = await getUserByEmail(email);
@@ -151,16 +156,20 @@ export const addWorkspaceMemberByEmail = async (
   };
 };
 
-// 오너만 멤버를 제거할 수 있고, 오너 본인(role: owner)은 이 경로로 제거할 수
-// 없습니다 — UI에서도 오너 칩엔 제거 버튼을 안 보여주지만, 서버에서도 막습니다.
+// 오너/관리자가 멤버를 제거할 수 있지만, 자기보다 낮은 역할만 대상으로
+// 삼을 수 있습니다 — 오너는 관리자/멤버를, 관리자는 멤버만 제거할 수
+// 있고, 오너 본인과 자기 자신은 이 경로로 제거할 수 없습니다.
 export const removeWorkspaceMember = async (
   workspaceId: string,
   memberId: string,
 ) => {
   const membership = await getWorkspaceMembership(workspaceId);
 
-  if (!membership || membership.role !== "owner") {
-    throw new Error("워크스페이스 오너만 멤버를 제거할 수 있습니다.");
+  if (
+    !membership ||
+    (membership.role !== "owner" && membership.role !== "admin")
+  ) {
+    throw new Error("워크스페이스 오너/관리자만 멤버를 제거할 수 있습니다.");
   }
 
   const target = await db.query.workspaceMember.findFirst({
@@ -169,8 +178,8 @@ export const removeWorkspaceMember = async (
 
   if (!target) return;
 
-  if (target.role === "owner") {
-    throw new Error("오너는 제거할 수 없습니다.");
+  if (!canActOnRole(membership.role, target.role)) {
+    throw new Error("자신보다 낮은 역할의 멤버만 제거할 수 있습니다.");
   }
 
   await db
@@ -192,6 +201,42 @@ export const removeWorkspaceMember = async (
   // 멤버 아바타 스택(WorkspaceConversationHeader)도 react-query 캐시라
   // 같이 무효화해줘야 머릿수가 바로 줄어듭니다.
   await notifyWorkspaceUpdated(workspaceId);
+};
+
+// 오너/관리자가 멤버의 역할을 바꿀 수 있지만, 자기보다 낮은 역할만
+// 대상으로 삼을 수 있습니다 — 관리자는 멤버를 관리자로 올릴 수 있지만,
+// 다른 관리자를 바꾸거나 자기 자신의 역할은 바꿀 수 없고(오너만 가능),
+// "관리자"/"멤버" 사이에서만 전환합니다(오너 역할 부여 불가).
+export const updateWorkspaceMemberRole = async (
+  workspaceId: string,
+  memberId: string,
+  role: "admin" | "member",
+) => {
+  const membership = await getWorkspaceMembership(workspaceId);
+
+  if (
+    !membership ||
+    (membership.role !== "owner" && membership.role !== "admin")
+  ) {
+    throw new Error("워크스페이스 오너/관리자만 역할을 변경할 수 있습니다.");
+  }
+
+  const target = await db.query.workspaceMember.findFirst({
+    where: { id: memberId, workspaceId },
+  });
+
+  if (!target) return;
+
+  if (!canActOnRole(membership.role, target.role)) {
+    throw new Error("자신보다 낮은 역할의 멤버만 역할을 변경할 수 있습니다.");
+  }
+
+  await db
+    .update(workspaceMember)
+    .set({ role })
+    .where(and(eq(workspaceMember.id, memberId), eq(workspaceMember.workspaceId, workspaceId)));
+
+  revalidatePath(BASE_URL);
 };
 
 // 워크스페이스 전용 헤더(WorkspaceConversationHeader)용 — 워크스페이스 이름과
@@ -246,13 +291,16 @@ export const joinWorkspace = async (workspaceId: string) => {
   }
 };
 
-// 오너만 초대 링크를 재발급할 수 있습니다 — 링크가 유출됐을 때 이전 링크를
-// 무효화하는 용도입니다.
+// 오너/관리자가 초대 링크를 재발급할 수 있습니다 — 링크가 유출됐을 때
+// 이전 링크를 무효화하는 용도입니다.
 export const regenerateWorkspaceInviteToken = async (workspaceId: string) => {
   const membership = await getWorkspaceMembership(workspaceId);
 
-  if (!membership || membership.role !== "owner") {
-    throw new Error("워크스페이스 오너만 초대 링크를 재발급할 수 있습니다.");
+  if (
+    !membership ||
+    (membership.role !== "owner" && membership.role !== "admin")
+  ) {
+    throw new Error("워크스페이스 오너/관리자만 초대 링크를 재발급할 수 있습니다.");
   }
 
   const newToken = generateInviteToken();

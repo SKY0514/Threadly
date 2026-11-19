@@ -44,7 +44,7 @@ export const getWorkspaceMembersWithUser = async (workspaceId: string) => {
       userId: member.userId,
       name: member.user!.name,
       email: member.user!.email,
-      isOwner: member.role === "owner",
+      role: member.role,
     }));
 };
 

@@ -50,3 +50,23 @@ export const getMemberAvatarColor = (id: string) => {
   const index = (hash >>> 16) % MEMBER_AVATAR_COLORS.length;
   return MEMBER_AVATAR_COLORS[index];
 };
+
+export type WorkspaceRole = "owner" | "admin" | "member";
+
+const WORKSPACE_ROLE_RANK: Record<WorkspaceRole, number> = {
+  owner: 3,
+  admin: 2,
+  member: 1,
+};
+
+// 역할 변경/제거의 상하 관계: "자기보다 낮은 역할"만 대상으로 삼을 수
+// 있습니다. 동급(자기 자신 포함)이거나 더 높은 역할은 항상 false가 되므로,
+// 자기 자신을 바꾸는 것도, 동급/상급자를 건드리는 것도 이 비교 하나로
+// 막힙니다 — 오너는 1명 고정이라 이 경로로 오너가 될 수도, 오너가 대상이
+// 될 수도 없습니다. actions/workspaces.ts(서버 검증)와
+// WorkspaceSettingsView.tsx(버튼/드롭다운 노출 여부) 양쪽이 같은 규칙을
+// 쓰도록 공용으로 뺐습니다.
+export const canActOnRole = (
+  actorRole: WorkspaceRole,
+  targetRole: WorkspaceRole,
+) => WORKSPACE_ROLE_RANK[actorRole] > WORKSPACE_ROLE_RANK[targetRole];

@@ -266,10 +266,10 @@ const assertCanManageConversation = async (conversationId: string) => {
   }
 
   const membership = await getWorkspaceMembership(target.workspaceId);
-  const isOwner = membership?.role === "owner";
+  const isStaff = membership?.role === "owner" || membership?.role === "admin";
   const isCreator = target.userId === session.id;
 
-  if (!isOwner && !isCreator) {
+  if (!isStaff && !isCreator) {
     throw new Error("이 대화를 수정/삭제할 권한이 없습니다.");
   }
 

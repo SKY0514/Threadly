@@ -61,17 +61,20 @@ const WorkspaceGroup = ({ workspace, conversations }: Props) => {
   const currentUserId = useUserStore((state) => state.user.id);
 
   const isOwner = workspace.role === "owner";
+  const isAdmin = workspace.role === "admin";
+  const isStaff = isOwner || isAdmin;
   const { openModal, closeModal } = useModalStore((state) => state);
 
   const [isDeleting, startDeleteTransition] = useTransition();
 
-  // 이름 변경/삭제 권한: 오너는 전부, 멤버는 본인이 만든 대화만 (⋮ 메뉴 노출 여부에
-  // 그대로 반영됩니다 — 실제 검증은 actions/conversations.ts에서 한 번 더 합니다)
+  // 이름 변경/삭제 권한: 오너/관리자는 전부, 유저는 본인이 만든 대화만
+  // (⋮ 메뉴 노출 여부에 그대로 반영됩니다 — 실제 검증은
+  // actions/conversations.ts에서 한 번 더 합니다)
   const items = conversations.map((conversation) => ({
     id: conversation.id,
     label: conversation.name || "",
     href: WORKSPACE_ROUTES.CONVERSATION(workspace.id, conversation.id),
-    canManage: isOwner || conversation.userId === currentUserId,
+    canManage: isStaff || conversation.userId === currentUserId,
   }));
 
   const [optimisticList, removeOptimisticList] = useOptimistic(
@@ -213,7 +216,7 @@ const WorkspaceGroup = ({ workspace, conversations }: Props) => {
           >
             <Plus className="size-3.5" />
           </Link>
-          {isOwner && (
+          {isStaff && (
             <Link
               href={WORKSPACE_ROUTES.STATS(workspace.id)}
               title="사용량 통계"
@@ -227,7 +230,7 @@ const WorkspaceGroup = ({ workspace, conversations }: Props) => {
               <BarChart2 className="size-3.5" />
             </Link>
           )}
-          {isOwner && (
+          {isStaff && (
             <Link
               href={WORKSPACE_ROUTES.SETTINGS(workspace.id)}
               title="워크스페이스 설정"

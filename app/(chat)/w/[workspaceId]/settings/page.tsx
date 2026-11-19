@@ -21,20 +21,22 @@ const WorkspaceSettingsPage = async ({
     redirect(NOT_FOUND_URL);
   }
 
-  // 멤버여도 오너가 아니면 설정 화면은 못 봐요 — 사이드바에서 아이콘을
-  // 숨기는 건 보기 좋으라는 것일 뿐, URL로 직접 들어오는 걸 막는 실제
-  // 권한 검증은 항상 여기, 서버에서 해야 합니다.
-  if (membership.role !== "owner") {
+  // 멤버(일반 유저)는 설정 화면을 못 봐요 — 오너/관리자만 접근 가능합니다.
+  // 관리자가 볼 수 있는 영역(멤버/초대 링크)은 WorkspaceSettingsView가
+  // currentUserRole을 받아 자체적으로 가려서 보여줍니다. 사이드바에서
+  // 아이콘을 숨기는 건 보기 좋으라는 것일 뿐, URL로 직접 들어오는 걸
+  // 막는 실제 권한 검증은 항상 여기, 서버에서 해야 합니다.
+  if (membership.role === "member") {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center gap-3 px-6 text-center">
         <div className="flex size-12 items-center justify-center rounded-full bg-[#f1f5f9]">
           <Lock className="size-5 text-[#64748b]" />
         </div>
         <h1 className="text-base font-semibold text-[#0f172a]">
-          오너만 볼 수 있는 화면이에요
+          오너/관리자만 볼 수 있는 화면이에요
         </h1>
         <p className="max-w-sm text-sm text-[#64748b]">
-          워크스페이스 설정은 오너만 변경할 수 있어요.
+          워크스페이스 설정은 오너/관리자만 변경할 수 있어요.
         </p>
         <Link
           href={WORKSPACE_ROUTES.NEW(workspaceId)}
@@ -54,6 +56,7 @@ const WorkspaceSettingsPage = async ({
       workspaceName={membership.workspace.name}
       inviteToken={membership.workspace.inviteToken}
       currentUserId={membership.userId}
+      currentUserRole={membership.role}
       initialMembers={members}
     />
   );

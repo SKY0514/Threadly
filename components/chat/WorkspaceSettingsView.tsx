@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   Check,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   Copy,
   Mail,
@@ -17,6 +18,12 @@ import toast from "react-hot-toast";
 import { cn } from "cn";
 import { Input } from "../ui/input";
 import { Avatar, AvatarFallback } from "../ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
 import DeleteWorkspaceModal from "./DeleteWorkspaceModal";
 import RemoveMemberModal from "./RemoveMemberModal";
 import ReissueInviteLinkModal from "./ReissueInviteLinkModal";
@@ -26,10 +33,16 @@ import {
   regenerateWorkspaceInviteToken,
   removeWorkspaceMember,
   renameWorkspace,
+  updateWorkspaceMemberRole,
 } from "@/actions/workspaces";
 import { WorkspaceInviteEmailSchema } from "@/schemas/workspace";
 import { BASE_URL, WORKSPACE_ROUTES } from "@/constants/routes";
-import { buildInviteLink, getMemberAvatarColor } from "@/utils";
+import {
+  buildInviteLink,
+  canActOnRole,
+  getMemberAvatarColor,
+  type WorkspaceRole,
+} from "@/utils";
 import pusherClient from "@/lib/pusherClient";
 
 type Member = {
@@ -37,7 +50,7 @@ type Member = {
   userId: string;
   name: string;
   email: string;
-  isOwner: boolean;
+  role: WorkspaceRole;
 };
 
 type ResultMessage = {
@@ -45,11 +58,24 @@ type ResultMessage = {
   text: string;
 };
 
+const ROLE_LABEL: Record<"admin" | "member", string> = {
+  admin: "관리자",
+  member: "멤버",
+};
+
+// 역할 드롭다운에서 선택지마다 보여주는 한 줄 설명 — 새로 생긴 개념이라
+// 고르기 전에 뭐가 다른지 바로 드러나야 합니다.
+const ROLE_DESCRIPTION: Record<"admin" | "member", string> = {
+  admin: "멤버 초대·제거, 역할 변경, 통계 열람",
+  member: "대화와 코멘트 참여",
+};
+
 type Props = {
   workspaceId: string;
   workspaceName: string;
   inviteToken: string;
   currentUserId: string;
+  currentUserRole: "owner" | "admin";
   initialMembers: Member[];
 };
 
@@ -76,9 +102,11 @@ const WorkspaceSettingsView = ({
   workspaceName,
   inviteToken: initialInviteToken,
   currentUserId,
+  currentUserRole,
   initialMembers,
 }: Props) => {
   const router = useRouter();
+  const isOwner = currentUserRole === "owner";
 
   // 일반 — 이름 변경
   const [name, setName] = useState(workspaceName);
@@ -95,6 +123,10 @@ const WorkspaceSettingsView = ({
   // 내보내기 확인 모달 대상 — null이면 모달이 닫혀 있는 상태입니다.
   const [removeTarget, setRemoveTarget] = useState<Member | null>(null);
   const [isRemoving, startRemoveTransition] = useTransition();
+  // 역할 변경 중인 멤버 id — 확인 창 없이 바로 적용하므로 드롭다운
+  // 비활성화 용도로만 씁니다.
+  const [changingRoleId, setChangingRoleId] = useState<string | null>(null);
+  const [, startRoleTransition] = useTransition();
 
   // 초대 링크
   const [inviteToken, setInviteToken] = useState(initialInviteToken);
@@ -167,7 +199,7 @@ const WorkspaceSettingsView = ({
               userId: result.member.userId,
               name: result.member.name,
               email,
-              isOwner: false,
+              role: "member",
             },
           ]);
           setResultMessage({
@@ -210,6 +242,35 @@ const WorkspaceSettingsView = ({
         toast.error(
           error instanceof Error ? error.message : "멤버 제거에 실패했습니다.",
         );
+      }
+    });
+  };
+
+  const handleChangeRole = (member: Member, role: "admin" | "member") => {
+    if (role === member.role) return;
+
+    const previousRole = member.role;
+    setChangingRoleId(member.id);
+    setMembers((prev) =>
+      prev.map((m) => (m.id === member.id ? { ...m, role } : m)),
+    );
+
+    startRoleTransition(async () => {
+      try {
+        await updateWorkspaceMemberRole(workspaceId, member.id, role);
+        toast.success("역할을 변경했어요.");
+        router.refresh();
+      } catch (error) {
+        setMembers((prev) =>
+          prev.map((m) =>
+            m.id === member.id ? { ...m, role: previousRole } : m,
+          ),
+        );
+        toast.error(
+          error instanceof Error ? error.message : "역할 변경에 실패했습니다.",
+        );
+      } finally {
+        setChangingRoleId(null);
       }
     });
   };
@@ -272,44 +333,46 @@ const WorkspaceSettingsView = ({
             <span className="font-semibold text-[#6366f1]">설정</span>
           </nav>
 
-          {/* 일반 */}
-          <Section
-            title="일반"
-            description="워크스페이스의 기본 식별 정보입니다."
-          >
-            <div className="flex w-full flex-col gap-2">
-              <label className="text-sm text-[#334155]">
-                워크스페이스 이름
-              </label>
-              <div className="flex w-full items-center gap-3">
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  disabled={isRenaming}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      handleSaveName();
-                    }
-                  }}
-                  className="h-auto max-w-[448px] flex-1 rounded-lg border border-[#cbd5e1] px-[15px] py-[11px] text-sm text-[#1e293b]"
-                />
-                <button
-                  type="button"
-                  onClick={handleSaveName}
-                  disabled={!canSaveName || isRenaming}
-                  className="shrink-0 rounded-lg border border-[#e2e8f0] bg-[#f1f5f9] px-[17px] py-[11px] text-sm text-[#94a3b8] enabled:border-transparent enabled:bg-[#6366f1] enabled:text-white enabled:hover:bg-[#4f46e5] disabled:cursor-not-allowed"
-                >
-                  {isRenaming ? "저장 중..." : "저장"}
-                </button>
+          {/* 일반 — 이름 변경은 오너만 할 수 있어서, 관리자에게는 카드 자체를 숨깁니다 */}
+          {isOwner && (
+            <Section
+              title="일반"
+              description="워크스페이스의 기본 식별 정보입니다."
+            >
+              <div className="flex w-full flex-col gap-2">
+                <label className="text-sm text-[#334155]">
+                  워크스페이스 이름
+                </label>
+                <div className="flex w-full items-center gap-3">
+                  <Input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    disabled={isRenaming}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleSaveName();
+                      }
+                    }}
+                    className="h-auto max-w-[448px] flex-1 rounded-lg border border-[#cbd5e1] px-[15px] py-[11px] text-sm text-[#1e293b]"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveName}
+                    disabled={!canSaveName || isRenaming}
+                    className="shrink-0 rounded-lg border border-[#e2e8f0] bg-[#f1f5f9] px-[17px] py-[11px] text-sm text-[#94a3b8] enabled:border-transparent enabled:bg-[#6366f1] enabled:text-white enabled:hover:bg-[#4f46e5] disabled:cursor-not-allowed"
+                  >
+                    {isRenaming ? "저장 중..." : "저장"}
+                  </button>
+                </div>
               </div>
-            </div>
-          </Section>
+            </Section>
+          )}
 
           {/* 멤버 */}
           <Section
             title={`멤버 (${members.length})`}
-            description="워크스페이스에 참여 중인 팀원 목록입니다."
+            description="관리자는 멤버 초대·제거, 역할 변경, 초대 링크 재발급을 할 수 있어요. 워크스페이스 이름 변경과 삭제는 오너만 가능해요."
           >
             <div className="flex w-full flex-col gap-2">
               <div className="flex w-full items-center gap-2.5">
@@ -392,15 +455,37 @@ const WorkspaceSettingsView = ({
                     </div>
                   </div>
 
-                  {member.isOwner ? (
+                  {member.role === "owner" ? (
                     <span className="rounded-full border border-[#e0e7ff] bg-[#eef2ff] px-[11px] py-[3px] text-xs text-[#4338ca]">
                       오너
                     </span>
-                  ) : (
+                  ) : canActOnRole(currentUserRole, member.role) ? (
                     <div className="flex items-center gap-3">
-                      <span className="rounded-full bg-[#f1f5f9] px-2.5 py-0.5 text-xs text-[#475569]">
-                        멤버
-                      </span>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          disabled={changingRoleId === member.id}
+                          className="flex min-w-[72px] items-center justify-center gap-1.5 rounded-lg border border-[#e2e8f0] bg-white px-[11px] py-[5px] text-xs text-[#334155] drop-shadow-[0px_1px_1px_rgba(0,0,0,0.05)] outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {ROLE_LABEL[member.role]}
+                          <ChevronDown className="size-3.5" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-64">
+                          {(["admin", "member"] as const).map((role) => (
+                            <DropdownMenuItem
+                              key={role}
+                              onClick={() => handleChangeRole(member, role)}
+                              className="flex-col items-start gap-0.5 py-1.5"
+                            >
+                              <span className="text-xs font-medium text-[#0f172a]">
+                                {ROLE_LABEL[role]}
+                              </span>
+                              <span className="text-[11px] text-[#94a3b8]">
+                                {ROLE_DESCRIPTION[role]}
+                              </span>
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                       <button
                         type="button"
                         onClick={() => setRemoveTarget(member)}
@@ -409,6 +494,12 @@ const WorkspaceSettingsView = ({
                         제거
                       </button>
                     </div>
+                  ) : (
+                    // 동급(다른 관리자)이거나 자기 자신이라 역할 변경/제거를
+                    // 할 수 없는 행 — 역할만 읽기 전용으로 보여줍니다.
+                    <span className="rounded-full bg-[#f1f5f9] px-2.5 py-0.5 text-xs text-[#475569]">
+                      {ROLE_LABEL[member.role]}
+                    </span>
                   )}
                 </div>
               ))}
@@ -456,25 +547,27 @@ const WorkspaceSettingsView = ({
             </div>
           </Section>
 
-          {/* 위험 영역 */}
-          <div className="flex w-full flex-col items-start rounded-2xl border border-[#fecaca] bg-[rgba(254,242,242,0.2)] p-[25px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]">
-            <div className="flex w-full items-center justify-between gap-4">
-              <div className="flex flex-col gap-1">
-                <h3 className="text-base text-[#dc2626]">위험 영역</h3>
-                <p className="text-sm text-[#475569]">
-                  삭제하면 대화방, 메시지, 코멘트, 사용량 기록이 모두 사라지고
-                  되돌릴 수 없어요.
-                </p>
+          {/* 위험 영역 — 삭제는 오너만 할 수 있어서, 관리자에게는 카드 자체를 숨깁니다 */}
+          {isOwner && (
+            <div className="flex w-full flex-col items-start rounded-2xl border border-[#fecaca] bg-[rgba(254,242,242,0.2)] p-[25px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]">
+              <div className="flex w-full items-center justify-between gap-4">
+                <div className="flex flex-col gap-1">
+                  <h3 className="text-base text-[#dc2626]">위험 영역</h3>
+                  <p className="text-sm text-[#475569]">
+                    삭제하면 대화방, 메시지, 코멘트, 사용량 기록이 모두 사라지고
+                    되돌릴 수 없어요.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsDeleteModalOpen(true)}
+                  className="shrink-0 rounded-lg border border-[#fca5a5] bg-white px-[17px] py-2.25 text-sm text-[#dc2626] hover:bg-red-50"
+                >
+                  워크스페이스 삭제
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsDeleteModalOpen(true)}
-                className="shrink-0 rounded-lg border border-[#fca5a5] bg-white px-[17px] py-2.25 text-sm text-[#dc2626] hover:bg-red-50"
-              >
-                워크스페이스 삭제
-              </button>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
