@@ -24,7 +24,8 @@ export const getConversation = async (id: string) => {
 // 특정 대화방 페이지를 안 보고 있어도(사이드바만 보고 있어도) 대화방
 // 생성/삭제/제목 변경을 알 수 있게, 워크스페이스 단위 채널로도 신호를
 // 쏩니다. 사이드바는 받으면 그냥 router.refresh()로 전체를 다시 읽어요.
-const notifyWorkspaceUpdated = async (workspaceId: string) => {
+// actions/workspaces.ts의 renameWorkspace도 그대로 재사용합니다.
+export const notifyWorkspaceUpdated = async (workspaceId: string) => {
   await pusherServer.trigger(
     workspaceChannel(workspaceId),
     PUSHER_EVENTS.WORKSPACE_UPDATED,

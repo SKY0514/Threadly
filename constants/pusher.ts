@@ -27,4 +27,11 @@ export const PUSHER_EVENTS = {
   // payload 없음. 사이드바가 이 신호만 받고 router.refresh()로 서버
   // 데이터를 다시 가져옵니다.
   WORKSPACE_UPDATED: "workspace-updated",
+  // 워크스페이스 자체가 삭제됐을 때 — payload 없음. 지금 그 워크스페이스
+  // 어딘가(대화/통계/설정)를 보고 있던 멤버를 포함해 전원에게 쏩니다.
+  WORKSPACE_DELETED: "workspace-deleted",
+  // 멤버가 추방됐을 때 — payload: { userId: string }. 워크스페이스 채널은
+  // 멤버 전원이 구독하고 있어서, 추방된 "나"인지는 클라이언트가 이 userId로
+  // 직접 걸러냅니다 — 남은 멤버는 이 이벤트를 받아도 조용히 무시합니다.
+  MEMBER_REMOVED: "member-removed",
 } as const;
