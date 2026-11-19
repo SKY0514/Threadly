@@ -22,3 +22,31 @@ export const formatCompactNumber = (value: number) =>
     notation: "compact",
     maximumFractionDigits: 1,
   }).format(value);
+
+// CreateWorkspaceModal.tsx(생성 직후 초대 링크)와 워크스페이스 설정 화면이
+// 공유하는 초대 링크 생성 로직입니다.
+export const buildInviteLink = (inviteToken: string) => {
+  const base = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+  return `${base}/invite/${inviteToken}`;
+};
+
+// 멤버 아바타 배경색 팔레트 — 인디고 톤 범위 안에서만 고릅니다(앱 전반의
+// 톤과 맞추기 위해). user_id를 해시해서 고르므로, 어디서 렌더링되든(코멘트/
+// 대화방 헤더/워크스페이스 설정 화면) 같은 사람은 항상 같은 색을 받습니다.
+const MEMBER_AVATAR_COLORS = ["#E2DFFF", "#C9E6FF", "#DAE2FD", "#E2E7FF"];
+
+// 단순히 글자 코드를 더해서 나누면 거의 항상 같은 색이 나와요 — 한글
+// 완성형 코드(0xAC00 + (초성*21+중성)*28+종성)는 28이 4의 배수라서,
+// 그 값 % 4가 사실상 받침(종성) 인덱스로만 정해지고, 실제 이름들은 받침이
+// 비슷하게 겹치는 경우가 많아서 쏠립니다. FNV-1a로 제대로 섞은 뒤, 하위
+// 비트보다 덜 쏠리는 상위 비트를 사용합니다. (uuid인 user_id는 애초에 겹칠
+// 걱정이 없지만, 그대로 재사용해 하나의 해시 함수로 통일합니다.)
+export const getMemberAvatarColor = (id: string) => {
+  let hash = 0x811c9dc5;
+  for (const char of id) {
+    hash ^= char.charCodeAt(0);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  const index = (hash >>> 16) % MEMBER_AVATAR_COLORS.length;
+  return MEMBER_AVATAR_COLORS[index];
+};

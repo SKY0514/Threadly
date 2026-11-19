@@ -94,9 +94,13 @@ const Header = ({ sidebar }: { sidebar: ReactNode }) => {
     }
   }, [isEditMode]);
 
-  // 워크스페이스 통계 대시보드는 피그마 디자인에 별도 헤더가 없어요 — 그
-  // 화면 자체가 상단에 브레드크럼+기간 선택 바를 자체적으로 가지고 있어요.
-  if (workspaceId && pathname === WORKSPACE_ROUTES.STATS(workspaceId)) {
+  // 워크스페이스 통계 대시보드/설정 화면은 피그마 디자인에 별도 헤더가
+  // 없어요 — 각 화면이 상단에 자체 브레드크럼 바를 가지고 있어요.
+  if (
+    workspaceId &&
+    (pathname === WORKSPACE_ROUTES.STATS(workspaceId) ||
+      pathname === WORKSPACE_ROUTES.SETTINGS(workspaceId))
+  ) {
     return null;
   }
 
@@ -110,6 +114,7 @@ const Header = ({ sidebar }: { sidebar: ReactNode }) => {
         workspaceName={workspaceInfo.workspaceName}
         conversationTitle={conversationName || "새 대화"}
         members={workspaceInfo.members.map((member) => ({
+          id: member.userId,
           name: member.name,
           initial: member.name.slice(-2),
         }))}

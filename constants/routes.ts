@@ -24,6 +24,7 @@ export const WORKSPACE_ROUTES = {
   CONVERSATION: (workspaceId: string, conversationId: string) =>
     `/w/${workspaceId}/c/${conversationId}`,
   STATS: (workspaceId: string) => `/w/${workspaceId}/stats`,
+  SETTINGS: (workspaceId: string) => `/w/${workspaceId}/settings`,
 };
 
 export const PUBLIC_ROUTES = [AUTH_ROUTES.LOGIN, AUTH_ROUTES.SIGN_UP];

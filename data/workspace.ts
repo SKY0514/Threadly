@@ -27,6 +27,27 @@ export const getWorkspaceMembership = async (workspaceId: string) => {
   });
 };
 
+// 워크스페이스 설정 화면의 멤버 목록용 — User와 조인해 이름/이메일을 함께
+// 내려줍니다. 멤버십/오너 권한 검증은 호출부(설정 페이지)에서 이미 한 번
+// 하므로 여기서는 하지 않습니다.
+export const getWorkspaceMembersWithUser = async (workspaceId: string) => {
+  const members = await db.query.workspaceMember.findMany({
+    where: { workspaceId },
+    with: { user: true },
+    orderBy: (workspaceMember, { asc }) => [asc(workspaceMember.createdAt)],
+  });
+
+  return members
+    .filter((member) => member.user !== null)
+    .map((member) => ({
+      id: member.id,
+      userId: member.userId,
+      name: member.user!.name,
+      email: member.user!.email,
+      isOwner: member.role === "owner",
+    }));
+};
+
 export const getConversationsByWorkspace = async (workspaceId: string) => {
   return db.query.conversation.findMany({
     where: { workspaceId },

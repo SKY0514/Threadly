@@ -36,11 +36,7 @@ import {
   WorkspaceInviteEmailSchema,
 } from "@/schemas/workspace";
 import FormMessage from "../auth/FormMessage";
-
-const buildInviteLink = (inviteToken: string) => {
-  const base = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
-  return `${base}/invite/${inviteToken}`;
-};
+import { buildInviteLink } from "@/utils";
 
 type Member = {
   id: string;
