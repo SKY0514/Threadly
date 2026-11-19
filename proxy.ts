@@ -8,6 +8,14 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isPublicRoute = PUBLIC_ROUTES.includes(pathname);
 
+  // 초대 링크는 로그인 여부와 상관없이 일단 페이지까지 통과시킵니다 — 거기서
+  // 토큰이 유효한지부터 확인하고, 유효할 때만 로그인을 요구해야 합니다.
+  // 여기서 먼저 로그인/회원가입을 강제하면, 이미 죽은 링크를 위해 가입까지
+  // 시키고 나서 실패하는 최악의 경험이 됩니다.
+  if (pathname.startsWith("/invite/")) {
+    return NextResponse.next();
+  }
+
   const cookie = (await cookies()).get("session")?.value;
   const session = await verify(cookie);
 

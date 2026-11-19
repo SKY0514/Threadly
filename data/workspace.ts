@@ -48,6 +48,14 @@ export const getWorkspaceMembersWithUser = async (workspaceId: string) => {
     }));
 };
 
+// /invite/[token] 접속 시 토큰 자체가 유효한지부터 확인하는 용도라, 로그인
+// 여부와 무관하게 호출할 수 있어야 해서(verifySession 없이) 세션 검증을
+// 하지 않습니다 — 로그인을 강제하기 전에 먼저 이 조회로 유효/무효를
+// 가려야 하기 때문입니다.
+export const getWorkspaceByInviteToken = async (token: string) => {
+  return db.query.workspace.findFirst({ where: { inviteToken: token } });
+};
+
 export const getConversationsByWorkspace = async (workspaceId: string) => {
   return db.query.conversation.findMany({
     where: { workspaceId },

@@ -1,12 +1,18 @@
-import Link from "next/link";
-import { Link2Off } from "lucide-react";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { joinWorkspaceByInviteToken } from "@/actions/workspaces";
-import { BASE_URL, WORKSPACE_ROUTES } from "@/constants/routes";
+import { verify } from "@/actions/sessions";
+import { getWorkspaceByInviteToken } from "@/data/workspace";
+import { joinWorkspace } from "@/actions/workspaces";
+import { AUTH_ROUTES, WORKSPACE_ROUTES } from "@/constants/routes";
+import InvalidInviteLinkView from "@/components/InvalidInviteLinkView";
 
-// 로그인은 proxy.ts가 이미 강제합니다(비로그인이면 /login?from=/invite/[token]로
-// 리다이렉트) — 여기 도달했다면 로그인된 상태입니다. 이미 멤버여도 중복
-// 추가하지 않고 그대로 해당 워크스페이스로 보냅니다.
+// proxy.ts가 /invite/*는 로그인 여부와 무관하게 그대로 통과시켜요 — 토큰이
+// 유효한지부터 확인한 뒤에만 로그인을 요구해야, 죽은 링크를 위해 가입까지
+// 시키고 나서 실패하는 최악의 경험을 피할 수 있습니다.
+//
+// 검증 순서: 토큰 조회 → 없음 → 무효 링크 화면
+//           → 있음 + 비로그인 → /login?from=/invite/[token]
+//           → 있음 + 로그인 → 멤버 등록(이미 멤버면 생략) → 워크스페이스로 이동
 const InvitePage = async ({
   params,
 }: {
@@ -14,32 +20,24 @@ const InvitePage = async ({
 }) => {
   const { token } = await params;
 
-  const result = await joinWorkspaceByInviteToken(token);
+  const targetWorkspace = await getWorkspaceByInviteToken(token);
 
-  if (!result) {
-    return (
-      <div className="flex h-full w-full flex-col items-center justify-center gap-3 px-6 text-center">
-        <div className="flex size-12 items-center justify-center rounded-full bg-[#f1f5f9]">
-          <Link2Off className="size-5 text-[#64748b]" />
-        </div>
-        <h1 className="text-base font-semibold text-[#0f172a]">
-          유효하지 않은 초대 링크예요
-        </h1>
-        <p className="max-w-sm text-sm text-[#64748b]">
-          링크가 만료되었거나, 오너가 새 링크로 재발급했을 수 있어요. 워크스페이스
-          오너에게 최신 초대 링크를 다시 받아보세요.
-        </p>
-        <Link
-          href={BASE_URL}
-          className="mt-2 rounded-xl bg-[#6366f1] px-4 py-2 text-sm text-white hover:bg-[#4f46e5]"
-        >
-          홈으로 이동
-        </Link>
-      </div>
+  if (!targetWorkspace) {
+    return <InvalidInviteLinkView />;
+  }
+
+  const cookie = (await cookies()).get("session")?.value;
+  const session = await verify(cookie);
+
+  if (!session) {
+    redirect(
+      `${AUTH_ROUTES.LOGIN}?from=${encodeURIComponent(`/invite/${token}`)}`,
     );
   }
 
-  redirect(WORKSPACE_ROUTES.NEW(result.workspaceId));
+  await joinWorkspace(targetWorkspace.id);
+
+  redirect(WORKSPACE_ROUTES.NEW(targetWorkspace.id));
 };
 
 export default InvitePage;
